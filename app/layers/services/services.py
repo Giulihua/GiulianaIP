@@ -1,26 +1,30 @@
-# capa de servicio/lógica de negocio
-
 from ..transport import transport
 from ...config import config
 from ..persistence import repositories
 from ..utilities import translator
 from django.contrib.auth import get_user
 
-# función que devuelve un listado de cards. Cada card representa una imagen de la API de Pokemon
+# función que devuelve un listado de cards. Cada card representa una imagen de la API de Pokémon
 def getAllImages():
-    # debe ejecutar los siguientes pasos:
-    # 1) traer un listado de imágenes crudas desde la API (ver transport.py)
-    # 2) convertir cada img. en una card.
-    # 3) añadirlas a un nuevo listado que, finalmente, se retornará con todas las card encontradas.
-    pass
+    # 1) Traer datos crudos de la API
+    raw_pokemons = transport.get_all_pokemons()
 
-# función que filtra según el nombre del pokemon.
+    # 2) Convertirlos en objetos Card (usando el traductor)
+    cards = []
+    for raw in raw_pokemons:
+        card = translator.raw_to_card(raw)
+        cards.append(card)
+
+    # 3) Devolver listado de cards
+    return cards
+
+# función que filtra según el nombre del Pokémon.
 def filterByCharacter(name):
     filtered_cards = []
 
     for card in getAllImages():
-        # debe verificar si el name está contenido en el nombre de la card, antes de agregarlo al listado de filtered_cards.
-        filtered_cards.append(card)
+        if name.lower() in card.name.lower():
+            filtered_cards.append(card)
 
     return filtered_cards
 
@@ -29,39 +33,38 @@ def filterByType(type_filter):
     filtered_cards = []
 
     for card in getAllImages():
-        # debe verificar si la casa de la card coincide con la recibida por parámetro. Si es así, se añade al listado de filtered_cards.
-        filtered_cards.append(card)
+        if type_filter.lower() in [t.lower() for t in card.types]:
+            filtered_cards.append(card)
 
     return filtered_cards
 
-# añadir favoritos (usado desde el template 'home.html')
+# Añadir favorito (usado desde el template 'home.html')
 def saveFavourite(request):
-    fav = '' # transformamos un request en una Card (ver translator.py)
-    fav.user = get_user(request) # le asignamos el usuario correspondiente.
+    fav = translator.request_to_favourite(request)  # transforma request en Card
+    fav.user = get_user(request)
+    return repositories.save_favourite(fav)
 
-    return repositories.save_favourite(fav) # lo guardamos en la BD.
-
-# usados desde el template 'favourites.html'
+# Obtener todos los favoritos del usuario (usado desde 'favourites.html')
 def getAllFavourites(request):
     if not request.user.is_authenticated:
         return []
     else:
         user = get_user(request)
-
-        favourite_list = [] # buscamos desde el repositories.py TODOS Los favoritos del usuario (variable 'user').
+        favourite_list = repositories.get_favourites_by_user(user)
         mapped_favourites = []
 
         for favourite in favourite_list:
-            card = '' # convertimos cada favorito en una Card, y lo almacenamos en el listado de mapped_favourites que luego se retorna.
+            card = translator.favourite_to_card(favourite)
             mapped_favourites.append(card)
 
         return mapped_favourites
 
+# Eliminar favorito por ID
 def deleteFavourite(request):
     favId = request.POST.get('id')
-    return repositories.delete_favourite(favId) # borramos un favorito por su ID
+    return repositories.delete_favourite(favId)
 
-#obtenemos de TYPE_ID_MAP el id correspondiente a un tipo segun su nombre
+# obtener el ícono del tipo (opcional para decorar el template)
 def get_type_icon_url_by_name(type_name):
     type_id = config.TYPE_ID_MAP.get(type_name.lower())
     if not type_id:
